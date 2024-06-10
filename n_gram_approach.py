@@ -16,10 +16,12 @@ j = 4 # n-gram order
 seed_size = 1000
 start_verse = 'gen 1:1'
 end_verse = 'rev 22:21'
+ebible_filename = 'eng-engwmbb'
+versification='eng'
 
 # **********************************************
 
-verses = ScriptureReference(start_verse, end_verse).verses
+verses = ScriptureReference(start_verse, end_verse, bible_filename=ebible_filename, versification=versification).verses
 
 # Passages is now a 2D list of [v_ref, verse_text] pairs
 
