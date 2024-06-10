@@ -6,25 +6,22 @@ import time
 import re
 import os
 from datetime import datetime
-
 pp = pprint.PrettyPrinter(indent=4)
 REFERENCE = 0
 CONTENT = 1
 
-
+# ***************** PARAMETERS *****************
 
 j = 4 # n-gram order
-seed_size = 10
+seed_size = 1000
 start_verse = 'gen 1:1'
-end_verse = 'gen 50:1'
+end_verse = 'rev 22:21'
 
-
+# **********************************************
 
 verses = ScriptureReference(start_verse, end_verse).verses
 
 # Passages is now a 2D list of [v_ref, verse_text] pairs
-# Extract the verses from the 2D list
-# verses = [verse[1] for verse in passages]
 
 # remove empty verses
 verses = [verse for verse in verses if verse[CONTENT] != '']
@@ -124,10 +121,9 @@ for i in range(seed_size):
 end = time.time()
 
 # print total time taken
-print("\nTime taken: ", end - start)
+print("\nTime taken: {:.2f} seconds".format(end - start))
 
 # Save the seed corpus to a file. 
-# Create output directory if it doesn't exist
 if not os.path.exists('output'):
     os.makedirs('output')
 
@@ -145,8 +141,6 @@ filename = f"output/{j}-gram_seed_size_{seed_size}_verse_range_{start_verse}-{en
 # Write the seed corpus to the file
 with open(filename, 'w') as f:
     f.write(file_content)
-
-
 
 # plot the scores
 import matplotlib.pyplot as plt

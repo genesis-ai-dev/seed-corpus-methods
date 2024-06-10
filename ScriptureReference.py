@@ -211,11 +211,12 @@ class ScriptureReference:
     #     self.end_ref = self.parse_scripture_reference(end_ref) if end_ref else self.start_ref
     #     self.bible_url = f"https://raw.githubusercontent.com/BibleNLP/ebible/main/corpus/{bible_filename}.txt"
     #     self.verses = self.get_verses_between_refs()
-    def __init__(self, start_ref, end_ref=None, bible_filename='eng-engwmbb', source_type='ebible'):
+    def __init__(self, start_ref, end_ref=None, bible_filename='eng-engwmbb', source_type='ebible', versification='eng'):
         self.start_ref = self.parse_scripture_reference(start_ref)
         self.end_ref = self.parse_scripture_reference(end_ref) if end_ref else self.start_ref
         self.bible_filename = bible_filename
         self.source_type = source_type
+        self.versification = versification
         if source_type == 'ebible':
             self.bible_url = f"https://raw.githubusercontent.com/BibleNLP/ebible/main/corpus/{bible_filename}.txt"
             self.verses = self.get_verses_between_refs()
@@ -251,11 +252,41 @@ class ScriptureReference:
             'endVerse': endVerse
         }
 
+
     @cache
     def load_verses(self):
-        response = requests.get('https://raw.githubusercontent.com/BibleNLP/ebible/main/metadata/vref.txt')
+        response = requests.get(f'https://raw.githubusercontent.com/BibleNLP/ebible/main/metadata/{self.versification}.vrs')
         if response.status_code == 200:
-            return response.text.splitlines()
+            lines = response.text.splitlines()
+            verses = []
+            start_processing = False
+            
+            for line in lines:
+                if line.startswith('#') or not line.strip():
+                    continue
+                if line.startswith('GEN'):
+                    start_processing = True
+                if start_processing:
+                    parts = line.split()
+                    book = parts[0]
+                    chapters = parts[1:]
+                    for chapter in chapters:
+                        chapter_verses = chapter.split(':')
+                        if len(chapter_verses) != 2:
+                            continue
+                        chapter_number, verse_count = chapter_verses
+                        try:
+                            verse_count = int(verse_count)
+                        except ValueError:
+                            continue
+                        for verse in range(1, verse_count + 1):
+                            verses.append(f"{book} {chapter_number}:{verse}")
+                    if line.startswith('REV'):
+                        break
+            # print first and last 10 verses
+            print(verses[:10])
+            print(verses[-10:])
+            return verses
         else:
             return []
 
