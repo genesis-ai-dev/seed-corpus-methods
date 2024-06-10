@@ -4,14 +4,31 @@ from ScriptureReference import ScriptureReference
 import pprint
 import time
 import re
+import os
+from datetime import datetime
 
 pp = pprint.PrettyPrinter(indent=4)
+REFERENCE = 0
+CONTENT = 1
 
-passages = ScriptureReference('gen 1:1', 'rev 22:21').verses
 
-verses = [verse[1] for verse in passages]
 
-j = 4
+j = 4 # n-gram order
+seed_size = 10
+start_verse = 'gen 1:1'
+end_verse = 'gen 50:1'
+
+
+
+verses = ScriptureReference(start_verse, end_verse).verses
+
+# Passages is now a 2D list of [v_ref, verse_text] pairs
+# Extract the verses from the 2D list
+# verses = [verse[1] for verse in passages]
+
+# remove empty verses
+verses = [verse for verse in verses if verse[CONTENT] != '']
+
 # verses = [
 #     "In the beginning God created the heavens and the earth.",
 #     "Now the earth was formless and empty, darkness was over the surface of the deep.",
@@ -20,16 +37,10 @@ j = 4
 # ]
 
 # remove all punctuation from verses
-verses = [re.sub(r'[^a-z0-9 ]', '', verse.lower()) for verse in verses]
+verses = [[verse[REFERENCE], re.sub(r'[^a-z0-9 ]', '', verse[CONTENT].lower())] for verse in verses]
 
-verses = [verse for verse in verses if verse != '']
-
-# [print(verse) for verse in verses]
-
-seed_size = 1000
 known_ngrams = []
 seed_corpus = []
-
 ngram_dict = {}
 unique_ngrams = []
 
@@ -52,7 +63,7 @@ start = time.time()
 # get frequency count of all unique ngrams in corpus
 # get all unique ngrams per verse
 for i, verse in enumerate(verses):
-    unique_verse_ngrams = find_unique_ngrams(verse, j)
+    unique_verse_ngrams = find_unique_ngrams(verse[CONTENT], j)
     unique_ngrams.append(unique_verse_ngrams)
     for ngram in unique_verse_ngrams:
         if ngram not in ngram_dict:
@@ -60,13 +71,8 @@ for i, verse in enumerate(verses):
         else:
             ngram_dict[ngram] += 1
 
-# print("\nngram_dict")
-# pp.pprint(ngram_dict)
-# print("\nunique_ngrams")
-# [print(unique_ngram_set) for unique_ngram_set in unique_ngrams]
-
 # ngram_dict now has <unique_ngram: frequency_count> pairs 
-# unique_ngrams now has list where elem i is list of unique ngrams for verse i 
+# unique_ngrams now has list where elem i is list of unique ngrams for verse [i] 
 
 # get sum of all ngram frequency counts for each verse
 freq_count_sums = []
@@ -74,20 +80,16 @@ for i, verse in enumerate(verses):
     count = 0
     for ngram in unique_ngrams[i]:
         count += ngram_dict.get(ngram, 0)
-    freq_count_sums.append(count / len(verse))
+    freq_count_sums.append(count / len(verse[CONTENT]))
 
-# print("\nfreq_count_sums")     
-# [print(freq_count_sums[i]) for i in range(len(freq_count_sums))]
-
-# freq_count_sums [i] will have total ngram frequency count for verse i
+# freq_count_sums [i] will have total ngram frequency count for verse [i]
 
 known_ngrams = []
 score_data = []
 seed_time_data = []
 for i in range(seed_size):
-    # print("\nseed loop entry ", i, "\n")
-    # top_verse = verses[top_score_index]
     seed_start = time.time()
+
     top_score_dropped = False
     init_entry = True
     
@@ -95,50 +97,68 @@ for i in range(seed_size):
     while top_score_dropped or init_entry:
         init_entry, top_score_dropped = False, False
         top_score_index = freq_count_sums.index(max(freq_count_sums))
-        # print("\nwhile loop entry\ntop score index: ", top_score_index)
-        # print("top scoring verse: ", verses[top_score_index])
-        # print("score: ", freq_count_sums[top_score_index])
                 
         # recalculate top score
-        # for each unique ngram in the top-scoring verse
+        # for each unique ngram in the top-scoring verse, remove its score contribution if ngram is known
         for ngram in unique_ngrams[top_score_index]:
             if ngram in known_ngrams:
-                # print(f"\nngram {ngram} in known_ngrams")
-                freq_count_sums[top_score_index] -= ngram_dict.get(ngram, 0) / len(verses[top_score_index])
+                freq_count_sums[top_score_index] -= ngram_dict.get(ngram, 0) / len(verses[top_score_index][CONTENT])
                 while ngram in unique_ngrams[top_score_index]:
                     unique_ngrams[top_score_index].remove(ngram)
                 top_score_dropped = True
-        
-        # print("score dropped to: ", freq_count_sums[top_score_index])
 
-    seed_corpus.append(verses[top_score_index])
+    verse = verses[top_score_index]
+    seed_corpus.append(verse)
     score_data.append(freq_count_sums[top_score_index])
     freq_count_sums[top_score_index] = 0
     known_ngrams += (unique_ngrams[top_score_index])
     seed_end = time.time()
     seed_time_data.append(seed_end - seed_start)
+    
+    # Print next highest verse
+    print(f'{verse[REFERENCE]}: {verse[CONTENT]}', end="\n")
     # print percentage completion
-    print(f"\r{i/seed_size*100:.2f}%", end="")
+    print(f"\rProgress: {i/seed_size*100:.2f}%", end="\r")
 
 # end time
 end = time.time()
 
-# print("\nknown_ngrams:")
-# [print(known_ngram) for known_ngram in known_ngrams]
-[print(verse) for verse in seed_corpus]
-
 # print total time taken
 print("\nTime taken: ", end - start)
 
+# Save the seed corpus to a file. 
+# Create output directory if it doesn't exist
+if not os.path.exists('output'):
+    os.makedirs('output')
+
+# Format the current date/time to append to the filename
+now = datetime.now()
+date_time = now.strftime("%m-%d-%Y_%H-%M-%S")
+
+# Prepend file content with j, seed_size, and seed_corpus verse range
+file_content = f"j: {j}, seed_size: {seed_size}, seed_corpus verse range: {start_verse} - {end_verse}\n"
+file_content += "\n".join([f"{verse[REFERENCE]}: {verse[CONTENT]}" for verse in seed_corpus])
+
+# Create filename with date/time and prepend information
+filename = f"output/{j}-gram_seed_size_{seed_size}_verse_range_{start_verse}-{end_verse}_{date_time}.txt".replace(':', '_')
+
+# Write the seed corpus to the file
+with open(filename, 'w') as f:
+    f.write(file_content)
+
+
+
 # plot the scores
 import matplotlib.pyplot as plt
+fig1 = plt.figure(1)
 plt.plot(score_data)
 plt.ylabel('Score')
 plt.xlabel('Seed')
-plt.show()
 
 # plot the time taken per seed
+fig2 = plt.figure(2)
 plt.plot(seed_time_data)
 plt.ylabel('Time taken')
 plt.xlabel('Seed')
+
 plt.show()
