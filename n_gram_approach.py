@@ -144,6 +144,8 @@ filename = f"output/{j}-gram_seed_size_{seed_size}_verse_range_{start_verse}-{en
 with open(filename, 'w') as f:
     f.write(file_content)
 
+print(f"Seed corpus saved to output directory as {filename}")
+
 # plot the scores
 import matplotlib.pyplot as plt
 fig1 = plt.figure(1)
